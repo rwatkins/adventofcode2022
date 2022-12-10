@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -10,9 +11,17 @@ import qualified Data.Set as Set
 
 data Coord = Coord {x :: Int, y :: Int} deriving (Show, Ord, Eq)
 
+-- Short rope for part 1
 data Rope = Rope
   { rhead :: Coord,
     rtail :: Coord,
+    tailVisited :: Set.Set Coord
+  }
+  deriving (Show)
+
+-- Long rope for part 2
+data LongRope = LongRope
+  { knots :: [Coord],
     tailVisited :: Set.Set Coord
   }
   deriving (Show)
@@ -22,6 +31,13 @@ mkRope =
   Rope
     { rhead = Coord {x = 0, y = 0},
       rtail = Coord {x = 0, y = 0},
+      tailVisited = Set.fromList [Coord {x = 0, y = 0}]
+    }
+
+mkLongRope :: LongRope
+mkLongRope =
+  LongRope
+    { knots = replicate 10 Coord {x = 0, y = 0},
       tailVisited = Set.fromList [Coord {x = 0, y = 0}]
     }
 
@@ -51,16 +67,24 @@ parseMoves s =
     tupleToMoves (c, i) = replicate i $ charToMove c
 
 moveHead :: Rope -> Move -> Rope
-moveHead r@Rope {rhead} m =
+moveHead r@Rope {rhead} m = r {rhead = updateCoord rhead m}
+
+updateCoord :: Coord -> Move -> Coord
+updateCoord coord@Coord {x, y} m =
   case m of
-    MUp -> r {rhead = rhead {y = rhead.y - 1}}
-    MDown -> r {rhead = rhead {y = rhead.y + 1}}
-    MLeft -> r {rhead = rhead {x = rhead.x - 1}}
-    MRight -> r {rhead = rhead {x = rhead.x + 1}}
+    MUp -> coord {y = y - 1}
+    MDown -> coord {y = y + 1}
+    MLeft -> coord {x = x - 1}
+    MRight -> coord {x = x + 1}
+
+moveHeadLong :: LongRope -> Move -> LongRope
+moveHeadLong rope@LongRope {knots} m =
+  rope {knots = updateCoord (head knots) m : drop 1 knots}
 
 updateTail :: Rope -> Rope
 updateTail rope@Rope {rhead, rtail, tailVisited} =
-  let newTail = Coord {x = rtail.x + moveX, y = rtail.y + moveY}
+  let (moveX, moveY) = knotMove rhead rtail
+      newTail = Coord {x = rtail.x + moveX, y = rtail.y + moveY}
    in rope
         { rtail =
             newTail,
@@ -69,10 +93,12 @@ updateTail rope@Rope {rhead, rtail, tailVisited} =
               newTail
               tailVisited
         }
-  where
-    diffX = rhead.x - rtail.x
-    diffY = rhead.y - rtail.y
 
+knotMove :: Coord -> Coord -> (Int, Int)
+knotMove front next = (moveX, moveY)
+  where
+    diffX = front.x - next.x
+    diffY = front.y - next.y
     moveX
       | diffX > 1 = 1
       | diffX < -1 = -1
@@ -83,6 +109,24 @@ updateTail rope@Rope {rhead, rtail, tailVisited} =
       | diffY < -1 = -1
       | diffY /= 0 && abs diffX > 1 = if diffY > 0 then 1 else -1
       | otherwise = 0
+
+updateLongTail :: LongRope -> LongRope
+updateLongTail rope@LongRope {knots, tailVisited} =
+  let knotsTail = updateNextKnot <$> zip knots (drop 1 knots)
+   in rope
+        { knots =
+            head knots : knotsTail,
+          tailVisited =
+            Set.insert
+              (last knotsTail)
+              tailVisited
+        }
+  where
+    updateNextKnot :: (Coord, Coord) -> Coord
+    updateNextKnot (prev, cur) = applyMove cur (knotMove prev cur)
+
+    applyMove :: Coord -> (Int, Int) -> Coord
+    applyMove c (moveX, moveY) = c {x = c.x + moveX, y = c.y + moveY}
 
 --    .....    .....    .....
 --    .....    ..H..    ..H..
@@ -103,3 +147,6 @@ main = do
   let rope = L.foldl' (\r m -> updateTail (moveHead r m)) mkRope moves
   putStr "Part 1: "
   print $ length rope.tailVisited
+  let longRope = L.foldl' (\r m -> updateLongTail (moveHeadLong r m)) mkLongRope moves
+  putStr "Part 2: "
+  print $ length longRope.tailVisited
