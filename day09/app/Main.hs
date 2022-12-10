@@ -5,7 +5,6 @@
 
 module Main where
 
-import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.List as L
 import qualified Data.Set as Set
 
@@ -142,8 +141,8 @@ updateLongTail rope@LongRope {knots, tailVisited} =
 
 main :: IO ()
 main = do
-  input <- B.readFile "day9_input.txt"
-  let moves = parseMoves $ B.unpack input
+  input <- readFile "day9_input.txt"
+  let moves = parseMoves input
   let rope = L.foldl' (\r m -> updateTail (moveHead r m)) mkRope moves
   putStr "Part 1: "
   print $ length rope.tailVisited
